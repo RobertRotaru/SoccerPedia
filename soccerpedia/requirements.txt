@@ -1,0 +1,14 @@
+langchain
+langchain-openai
+fastapi
+uvicorn
+httpx
+streamlit
+python-dotenv
+pydantic
+requests
+beautifulsoup4
+lxml
+selenium
+python-dateutil
+unidecode

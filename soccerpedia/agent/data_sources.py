@@ -122,12 +122,48 @@ class DataSourceManager:
         
         return None
     
-    def get_matches(self, league: str = None, date: str = None, status: str = "all") -> Dict[str, Any]:
+    def get_matches(self, league: str = None, date: str = None, status: str = "all", force_live: bool = False) -> Dict[str, Any]:
         """
-        Get matches using the best available data source with intelligent fallbacks and caching
+        Get matches using the best available data source with intelligent fallbacks
         status: 'finished', 'scheduled', 'live', 'all'
+        force_live: If True, bypasses cache and fetches fresh data
         """
-        # Create cache parameters
+        # For live data requirements, adjust cache strategy
+        if force_live:
+            # Bypass cache for live data
+            errors = []
+            
+            # Try football-data.org first (more reliable for European leagues)
+            try:
+                result = self._get_matches_football_data(league, date, status)
+                if result and result.get("matches"):
+                    result["fetch_type"] = "live_fetch"
+                    return result
+                elif result and result.get("error"):
+                    errors.append(f"football-data.org: {result['error']}")
+            except Exception as e:
+                errors.append(f"football-data.org: {str(e)}")
+            
+            # Fallback to api-football.com
+            try:
+                result = self._get_matches_api_football(league, date, status)
+                if result and result.get("matches"):
+                    result["fetch_type"] = "live_fetch"
+                    return result
+                elif result and result.get("error"):
+                    errors.append(f"api-football.com: {result['error']}")
+            except Exception as e:
+                errors.append(f"api-football.com: {str(e)}")
+            
+            return {
+                "matches": [], 
+                "source": "none", 
+                "error": "No live data available from any source",
+                "detailed_errors": errors,
+                "fetch_type": "live_fetch_failed"
+            }
+        
+        # Create cache parameters for non-live requests
         cache_params = {
             'type': 'matches',
             'league': league,
@@ -142,6 +178,7 @@ class DataSourceManager:
             try:
                 result = self._get_matches_football_data(league, date, status)
                 if result and result.get("matches"):
+                    result["fetch_type"] = "cached"
                     return result
                 elif result and result.get("error"):
                     errors.append(f"football-data.org: {result['error']}")
@@ -152,6 +189,7 @@ class DataSourceManager:
             try:
                 result = self._get_matches_api_football(league, date, status)
                 if result and result.get("matches"):
+                    result["fetch_type"] = "cached"
                     return result
                 elif result and result.get("error"):
                     errors.append(f"api-football.com: {result['error']}")
@@ -168,6 +206,7 @@ class DataSourceManager:
                         if filtered_matches:
                             result["matches"] = filtered_matches
                             result["source"] += " (filtered)"
+                            result["fetch_type"] = "cached"
                             return result
                 except Exception as e:
                     errors.append(f"fallback search: {str(e)}")
@@ -176,16 +215,17 @@ class DataSourceManager:
                 "matches": [], 
                 "source": "none", 
                 "error": "No data available from any source",
-                "detailed_errors": errors
+                "detailed_errors": errors,
+                "fetch_type": "cached"
             }
         
         # Use cache with different TTLs based on status
         if status == "live":
-            ttl = 60  # Live matches update frequently - 1 minute cache
+            ttl = 30  # Live matches update frequently - 30 second cache
         elif status == "finished":
-            ttl = 3600  # Finished matches don't change - 1 hour cache
+            ttl = 1800  # Finished matches don't change - 30 minute cache
         else:
-            ttl = 300  # General matches - 5 minute cache
+            ttl = 180  # General matches - 3 minute cache
             
         return self.cache_manager.get_or_fetch(cache_params, fetch_matches_data, ttl=ttl)
     
@@ -291,9 +331,47 @@ class DataSourceManager:
             print(f"Error fetching from api-football.com: {e}")
             return None
     
-    def get_standings(self, league: str, season: str = None) -> Dict[str, Any]:
-        """Get league standings with enhanced error handling and caching"""
-        # Create cache parameters
+    def get_standings(self, league: str, season: str = None, force_live: bool = False) -> Dict[str, Any]:
+        """
+        Get league standings with enhanced error handling and caching
+        force_live: If True, bypasses cache and fetches fresh data
+        """
+        # For live data requirements, adjust cache strategy
+        if force_live:
+            # Bypass cache for live data
+            errors = []
+            
+            # Try football-data.org first
+            try:
+                result = self._get_standings_football_data(league, season)
+                if result and result.get("standings"):
+                    result["fetch_type"] = "live_fetch"
+                    return result
+                elif result and result.get("error"):
+                    errors.append(f"football-data.org: {result['error']}")
+            except Exception as e:
+                errors.append(f"football-data.org: {str(e)}")
+            
+            # Fallback to api-football.com
+            try:
+                result = self._get_standings_api_football(league, season)
+                if result and result.get("standings"):
+                    result["fetch_type"] = "live_fetch"
+                    return result
+                elif result and result.get("error"):
+                    errors.append(f"api-football.com: {result['error']}")
+            except Exception as e:
+                errors.append(f"api-football.com: {str(e)}")
+            
+            return {
+                "standings": [], 
+                "source": "none", 
+                "error": "No live standings data available",
+                "detailed_errors": errors,
+                "fetch_type": "live_fetch_failed"
+            }
+        
+        # Create cache parameters for non-live requests
         cache_params = {
             'type': 'standings',
             'league': league,
@@ -307,6 +385,7 @@ class DataSourceManager:
             try:
                 result = self._get_standings_football_data(league, season)
                 if result and result.get("standings"):
+                    result["fetch_type"] = "cached"
                     return result
                 elif result and result.get("error"):
                     errors.append(f"football-data.org: {result['error']}")
@@ -317,6 +396,7 @@ class DataSourceManager:
             try:
                 result = self._get_standings_api_football(league, season)
                 if result and result.get("standings"):
+                    result["fetch_type"] = "cached"
                     return result
                 elif result and result.get("error"):
                     errors.append(f"api-football.com: {result['error']}")
@@ -327,11 +407,12 @@ class DataSourceManager:
                 "standings": [], 
                 "source": "none", 
                 "error": "No standings data available",
-                "detailed_errors": errors
+                "detailed_errors": errors,
+                "fetch_type": "cached"
             }
         
-        # Standings change less frequently - cache for 1 hour
-        return self.cache_manager.get_or_fetch(cache_params, fetch_standings_data, ttl=3600)
+        # Standings change less frequently - cache for 30 minutes for live accuracy
+        return self.cache_manager.get_or_fetch(cache_params, fetch_standings_data, ttl=1800)
     
     def _get_standings_football_data(self, league: str, season: str = None) -> Optional[Dict]:
         """Get standings from football-data.org"""

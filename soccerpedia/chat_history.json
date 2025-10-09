@@ -1,0 +1,20 @@
+{
+  "chats": {
+    "71ad4f75-3ddc-45c3-92a8-879bfe18806b": [
+      {
+        "role": "assistant",
+        "content": "⚽ Welcome to Soccerpedia! I'm your AI football assistant. Ask me about matches, players, teams, standings, or any football-related question!",
+        "timestamp": "2025-10-08T15:55:04.281309"
+      }
+    ]
+  },
+  "metadata": {
+    "71ad4f75-3ddc-45c3-92a8-879bfe18806b": {
+      "title": "Welcome Chat",
+      "created_at": "2025-10-08T15:55:04.281284",
+      "last_updated": "2025-10-08T15:55:04.281305",
+      "message_count": 1
+    }
+  },
+  "last_updated": "2025-10-08T15:55:04.281317"
+}

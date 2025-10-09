@@ -1,4 +1,4 @@
-# gui/app.py
+# gui/app_enhanced.py - Enhanced version with conversation history and multiple chats
 import sys
 import os
 import time
@@ -136,7 +136,7 @@ def handle_api_error(error):
     """Handle API errors gracefully"""
     error_str = str(error).lower()
     if "rate limit" in error_str or "429" in error_str:
-        return "⚠️ **Rate Limit Exceeded**: The API is temporarily unavailable due to rate limiting. Please wait a moment and try again. You can try asking about different topics or wait 30-60 seconds before making another request."
+        return "⚠️ **Rate Limit Exceeded**: The API is temporarily unavailable due to rate limiting. Please wait a moment and try again."
     elif "401" in error_str or "unauthorized" in error_str:
         return "🔑 **Authentication Error**: There's an issue with the API authentication. Please check the API keys configuration."
     elif "timeout" in error_str:
@@ -240,24 +240,6 @@ st.markdown("""
         100% { transform: translate(-50%, -50%) scale(1.1); }
     }
     
-    /* Sidebar styling */
-    .css-1d391kg {
-        background: linear-gradient(180deg, #1e3c20 0%, #0d5016 100%);
-    }
-    
-    /* Input styling */
-    .stTextInput > div > div > input {
-        border: 2px solid #28a745;
-        border-radius: 10px;
-        padding: 0.75rem;
-        font-size: 1rem;
-    }
-    
-    .stTextInput > div > div > input:focus {
-        border-color: #20c997;
-        box-shadow: 0 0 10px rgba(40, 167, 69, 0.3);
-    }
-    
     /* Message styling */
     .user-message {
         background: linear-gradient(135deg, #007bff, #0056b3);
@@ -277,7 +259,6 @@ st.markdown("""
         box-shadow: 0 3px 10px rgba(0,0,0,0.2);
     }
     
-    /* Error styling */
     .error-message {
         background: linear-gradient(135deg, #dc3545, #c82333);
         color: white;
@@ -285,16 +266,6 @@ st.markdown("""
         border-radius: 10px;
         margin: 1rem 0;
         border-left: 5px solid #ff6b6b;
-    }
-    
-    /* Success styling */
-    .success-message {
-        background: linear-gradient(135deg, #28a745, #20c997);
-        color: white;
-        padding: 1rem;
-        border-radius: 10px;
-        margin: 1rem 0;
-        border-left: 5px solid #40e0d0;
     }
     
     /* Hide Streamlit branding */
@@ -308,9 +279,9 @@ st.markdown("""
 st.markdown("""
 <div class="main-header">
     <h1 class="main-title">⚽ SOCCERPEDIA</h1>
-    <p class="main-subtitle">🏆 Your AI-Powered Football Assistant 🏆</p>
+    <p class="main-subtitle">🏆 Your AI-Powered Football Assistant with Chat History 🏆</p>
     <p style="color: #f8f9fa; font-size: 0.9rem; margin-top: 1rem;">
-        💫 Ask about matches, players, teams, standings, and more! 💫
+        💫 Ask about matches, players, teams, standings, and more! All conversations are saved! 💫
     </p>
 </div>
 """, unsafe_allow_html=True)
@@ -338,7 +309,7 @@ if 'last_request_time' not in st.session_state:
 
 # Sidebar with chat management and quick actions
 with st.sidebar:
-    st.markdown("### � Chat Management")
+    st.markdown("### 💬 Chat Management")
     
     # New chat button
     if st.button("➕ New Chat", use_container_width=True):
@@ -378,7 +349,7 @@ with st.sidebar:
             st.rerun()
     
     st.markdown("---")
-    st.markdown("### �🚀 Quick Actions")
+    st.markdown("### 🚀 Quick Actions")
     
     # Rate limiting info
     if 'last_request_time' in st.session_state:
@@ -391,9 +362,9 @@ with st.sidebar:
     else:
         can_make_request = True
     
-    if st.button("🏆 Premier League Standings", use_container_width=True, disabled=not can_make_request):
+    if st.button("🏆 Complete Premier League Table", use_container_width=True, disabled=not can_make_request):
         if can_make_request:
-            st.session_state.quick_query = "Show me the current Premier League standings"
+            st.session_state.quick_query = "Show me the complete Premier League standings with all teams and their European qualification status"
             st.session_state.last_request_time = time.time()
     
     if st.button("⚽ Latest PL Results", use_container_width=True, disabled=not can_make_request):
@@ -410,6 +381,32 @@ with st.sidebar:
         if can_make_request:
             st.session_state.quick_query = "Are there any live matches right now?"
             st.session_state.last_request_time = time.time()
+    
+    # Additional league quick actions
+    st.markdown("**Other Leagues:**")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🇩🇪 Bundesliga", use_container_width=True, disabled=not can_make_request):
+            if can_make_request:
+                st.session_state.quick_query = "Show me the current Bundesliga standings"
+                st.session_state.last_request_time = time.time()
+        
+        if st.button("🇪🇸 La Liga", use_container_width=True, disabled=not can_make_request):
+            if can_make_request:
+                st.session_state.quick_query = "Show me the current La Liga standings"
+                st.session_state.last_request_time = time.time()
+    
+    with col2:
+        if st.button("🇮🇹 Serie A", use_container_width=True, disabled=not can_make_request):
+            if can_make_request:
+                st.session_state.quick_query = "Show me the current Serie A standings"
+                st.session_state.last_request_time = time.time()
+        
+        if st.button("🇫🇷 Ligue 1", use_container_width=True, disabled=not can_make_request):
+            if can_make_request:
+                st.session_state.quick_query = "Show me the current Ligue 1 standings"
+                st.session_state.last_request_time = time.time()
     
     if not can_make_request:
         st.info("💡 Rate limiting helps prevent API errors. Please wait a moment between requests.")
@@ -438,9 +435,11 @@ with st.sidebar:
     st.markdown("""
     - "Latest Real Madrid results"
     - "Messi's career stats"
-    - "Champions League standings"
+    - "Complete Premier League table"
+    - "Bundesliga relegation battle"
+    - "Who qualified for Champions League?"
     - "Transfer news for Arsenal"
-    - "Who won the 2018 World Cup?"
+    - "Live matches right now"
     """)
 
 # Initialize agent with error handling
@@ -453,21 +452,6 @@ def get_agent():
         st.error(f"Failed to initialize football agent: {str(e)}")
         return None
 
-# Initialize chat state
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-    # Add welcome message
-    st.session_state.messages.append({
-        "role": "assistant", 
-        "content": "⚽ Welcome to Soccerpedia! I'm your AI football assistant. Ask me about matches, players, teams, standings, or any football-related question!"
-    })
-
-if "quick_query" not in st.session_state:
-    st.session_state.quick_query = None
-
-if "last_request_time" not in st.session_state:
-    st.session_state.last_request_time = 0
-
 # Function to display loading animation
 def show_loading():
     return st.markdown("""
@@ -480,39 +464,34 @@ def show_loading():
     </div>
     """, unsafe_allow_html=True)
 
-# Function to format messages
-def format_message(content, role):
-    if role == "user":
-        return f'<div class="user-message">👤 <strong>You:</strong><br>{content}</div>'
-    else:
-        return f'<div class="assistant-message">⚽ <strong>Soccerpedia:</strong><br>{content}</div>'
-
-# Display chat history
-for message in st.session_state.messages:
-    st.markdown(format_message(message["content"], message["role"]), unsafe_allow_html=True)
-
-# Function to display loading animation
-def show_loading():
-    return st.markdown("""
-    <div class="loading-container">
-        <div class="football-loading"></div>
-        <div style="margin-left: 1rem;">
-            <p style="color: #28a745; font-weight: 600; margin: 0;">⚽ Processing your request...</p>
-            <p style="color: #666; font-size: 0.9rem; margin: 0;">Getting the latest football data</p>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-# Function to format messages
-def format_message(content, role):
-    if role == "user":
-        return f'<div class="user-message">👤 <strong>You:</strong><br>{content}</div>'
-    else:
-        return f'<div class="assistant-message">⚽ <strong>Soccerpedia:</strong><br>{content}</div>'
-
-# Display chat history
-for message in st.session_state.messages:
-    st.markdown(format_message(message["content"], message["role"]), unsafe_allow_html=True)
+# Display current chat history
+if st.session_state.current_chat_id in st.session_state.all_chats:
+    current_messages = st.session_state.all_chats[st.session_state.current_chat_id]
+    
+    # Show chat title
+    chat_title = st.session_state.chat_metadata[st.session_state.current_chat_id].get('title', 'Current Chat')
+    st.markdown(f"### 💬 {chat_title}")
+    
+    for message in current_messages:
+        timestamp = message.get('timestamp')
+        time_str = ""
+        if timestamp:
+            try:
+                dt = datetime.fromisoformat(timestamp)
+                time_str = f"<small style='color: #888;'>{dt.strftime('%H:%M')}</small>"
+            except:
+                time_str = ""
+        
+        if message["role"] == "user":
+            content_html = f'<div class="user-message">👤 <strong>You:</strong> {time_str}<br>{message["content"]}</div>'
+        else:
+            content_html = f'<div class="assistant-message">⚽ <strong>Soccerpedia:</strong> {time_str}<br>{message["content"]}</div>'
+        
+        st.markdown(content_html, unsafe_allow_html=True)
+else:
+    st.error("Current chat not found. Creating a new chat...")
+    st.session_state.current_chat_id = st.session_state.chat_manager.create_new_chat()
+    st.rerun()
 
 # Handle quick query
 if st.session_state.quick_query:
@@ -540,9 +519,13 @@ else:
         process_query = False
 
 if prompt and process_query:
-    # Add user message to chat
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    st.markdown(format_message(prompt, "user"), unsafe_allow_html=True)
+    # Add user message to current chat
+    st.session_state.chat_manager.add_message(st.session_state.current_chat_id, "user", prompt)
+    
+    # Display user message immediately
+    time_str = f"<small style='color: #888;'>{datetime.now().strftime('%H:%M')}</small>"
+    user_html = f'<div class="user-message">👤 <strong>You:</strong> {time_str}<br>{prompt}</div>'
+    st.markdown(user_html, unsafe_allow_html=True)
     
     # Show loading animation
     loading_placeholder = st.empty()
@@ -589,10 +572,12 @@ if prompt and process_query:
             answer += f"\n\n*⏱️ Response time: {response_time:.1f}s*"
         
         # Display assistant response
-        st.markdown(format_message(answer, "assistant"), unsafe_allow_html=True)
+        time_str = f"<small style='color: #888;'>{datetime.now().strftime('%H:%M')}</small>"
+        assistant_html = f'<div class="assistant-message">⚽ <strong>Soccerpedia:</strong> {time_str}<br>{answer}</div>'
+        st.markdown(assistant_html, unsafe_allow_html=True)
         
-        # Add to chat history
-        st.session_state.messages.append({"role": "assistant", "content": answer})
+        # Add to current chat history
+        st.session_state.chat_manager.add_message(st.session_state.current_chat_id, "assistant", answer)
         
     except Exception as e:
         # Clear loading animation
@@ -619,7 +604,7 @@ if prompt and process_query:
         st.markdown(f'<div class="error-message">{error_message}</div>', unsafe_allow_html=True)
         
         # Add error to chat history for context
-        st.session_state.messages.append({"role": "assistant", "content": error_message})
+        st.session_state.chat_manager.add_message(st.session_state.current_chat_id, "assistant", error_message)
         
         # Log the full error for debugging (in production, use proper logging)
         if st.secrets.get("DEBUG", False):
@@ -630,7 +615,7 @@ if prompt and process_query:
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: #666; padding: 1rem;">
-    <p>⚽ <strong>Soccerpedia</strong> - Powered by AI | 🌟 Built with Streamlit</p>
+    <p>⚽ <strong>Soccerpedia</strong> - Enhanced with Chat History & Memory | 🌟 Built with Streamlit</p>
     <p style="font-size: 0.8rem;">Data sources: Football-Data.org, API-Football, Wikipedia, Transfermarkt</p>
 </div>
 """, unsafe_allow_html=True)

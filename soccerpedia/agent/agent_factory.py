@@ -2,97 +2,104 @@
 from langchain_openai import ChatOpenAI
 from langchain.agents import create_openai_functions_agent, AgentExecutor
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from .optimized_tools import (
+from .tools import (
     get_current_date,
-    get_latest_premier_league_results,
-    get_latest_matches_any_league,
-    compare_players,
-    get_league_overview,
-    get_player_info_optimized,
-    get_live_matches_optimized,
-    search_football_info_optimized,
-    clear_cache
+    get_player_career_stats_live,
+    get_latest_matches_live,
+    get_league_standings_live,
+    get_transfer_news_live,
+    compare_players_live,
+    get_live_matches,
+    get_upcoming_matches,
+    search_football_info
 )
 
 
 def build_agent():
-    """Build a comprehensive football assistant agent with ReAct capabilities"""
+    """Build a comprehensive football assistant agent with LIVE DATA focus for accuracy"""
     
     # Choose your LLM
     llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
-    # Register optimized tools that use caching and batch processing to avoid rate limits
+    # Register LIVE data tools that prioritize accuracy over caching
     tools = [
         get_current_date,
-        get_latest_premier_league_results,
-        get_latest_matches_any_league,
-        compare_players,
-        get_league_overview,
-        get_player_info_optimized,
-        get_live_matches_optimized,
-        search_football_info_optimized,
-        clear_cache
+        get_player_career_stats_live,
+        get_latest_matches_live,
+        get_league_standings_live,
+        get_transfer_news_live,
+        compare_players_live,
+        get_live_matches,
+        get_upcoming_matches,
+        search_football_info
     ]
 
-    # Enhanced ReAct-style prompt with better reasoning guidance
+    # Enhanced prompt for LIVE DATA accuracy
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are Soccerpedia, an expert AI football (soccer) assistant with access to comprehensive CACHED data sources to avoid rate limits.
+        ("system", """You are Soccerpedia, an expert AI football (soccer) assistant with access to LIVE, REAL-TIME data sources for maximum accuracy.
 
-**IMPORTANT - Rate Limit Optimization:**
-- Your tools use intelligent caching to minimize API calls
-- Recent data is cached for 5-30 minutes, historical data for hours
-- Batch processing fetches related data in single operations
-- Use these optimized tools to avoid hitting API rate limits
+**🔴 LIVE DATA PRIORITY - ACCURACY FOCUSED:**
+- ALL tools fetch LIVE data on the day of query for maximum accuracy
+- Career stats are calculated and retrieved in real-time
+- Latest matches show ACTUAL recent results, not historical matchweeks
+- Standings are current as of today
+- Transfer news is up-to-date as of query time
+- Player comparisons use current season and career data
 
-**Your optimized capabilities:**
-- Latest Premier League results (get_latest_premier_league_results)
-- Latest matches from any league (get_latest_matches_any_league) 
-- Comprehensive league overviews (get_league_overview)
-- Player comparisons with cached data (compare_players)
-- Player information with market values (get_player_info_optimized)
-- Live matches with minimal API calls (get_live_matches_optimized)
-- Football info search with caching (search_football_info_optimized)
-- Cache management (clear_cache)
+**⚽ Your LIVE capabilities:**
+- LIVE player career stats (get_player_career_stats_live) - Real-time career totals, current season stats
+- LIVE latest matches (get_latest_matches_live) - Most recent completed matches, not matchweek 1
+- LIVE league standings (get_league_standings_live) - Current table as of today
+- LIVE transfer news (get_transfer_news_live) - Current rumors and completed transfers
+- LIVE player comparisons (compare_players_live) - Head-to-head with current data
+- LIVE ongoing matches (get_live_matches) - Currently playing games
+- Upcoming fixtures (get_upcoming_matches) - Next scheduled matches
 
-**Available leagues:** Premier League (PL), Bundesliga (BL1), Serie A (SA), La Liga (PD), Ligue 1 (FL1), Champions League (CL), World Cup (WC)
+**🌍 Available leagues:** Premier League (PL), Bundesliga (BL1), Serie A (SA), La Liga (PD), Ligue 1 (FL1), Champions League (CL), World Cup (WC)
 
-**Data sources:** football-data.org, api-football.com, Wikipedia, and Transfermarkt (all cached)
+**📊 Data sources (ALL LIVE):** 
+- football-data.org (real-time match/standing data)
+- api-football.com (live player/fixture data)
+- Transfermarkt.com (live market values, transfers)
+- Wikipedia (biographical data)
 
-**ReAct Instructions:**
-1. **Think** about what the user wants - latest results, player comparison, league overview?
-2. **Choose** the most efficient tool that uses cached data
-3. **Act** by calling the appropriate optimized tool
-4. **Observe** the cached results
-5. **Respond** with well-formatted information
+**🎯 ReAct Instructions for LIVE DATA:**
+1. **Think** - What current, accurate data does the user need?
+2. **Choose** - Select the _live tool for real-time accuracy
+3. **Act** - Call the tool to fetch TODAY'S data
+4. **Observe** - Review the live results with timestamps
+5. **Respond** - Present accurate, timestamped information
 
-**For common queries:**
-- "Latest PL results" → use get_latest_premier_league_results()
-- "Messi vs Ronaldo" → use compare_players("Messi", "Ronaldo") 
-- "Premier League overview" → use get_league_overview("PL")
-- "Player info" → use get_player_info_optimized(player_name)
+**🏆 For accuracy-critical queries:**
+- "Latest Premier League results" → get_latest_matches_live("PL") [NOT matchweek 1, but ACTUAL recent results]
+- "Messi vs Ronaldo stats" → compare_players_live("Messi", "Ronaldo") [Current career totals as of today]
+- "Current Premier League table" → get_league_standings_live("PL") [Live standings as of today]
+- "Messi career stats" → get_player_career_stats_live("Lionel Messi") [Complete career + current season]
+- "Transfer news for Mbappe" → get_transfer_news_live("Mbappe") [Today's transfer situation]
 
-**Guidelines:**
-- Prefer cached/optimized tools to avoid rate limits
-- Use clear_cache() if experiencing persistent issues
-- Format responses with emojis and structure
-- Always mention data is cached when relevant
-- Be specific about dates and competitions"""),
+**⚠️ CRITICAL GUIDELINES:**
+- ALWAYS use _live tools for current data accuracy
+- Mention data timestamps in responses (e.g., "as of October 8, 2025")
+- For "latest results" queries, ensure you get RECENT matches, not historical matchweeks
+- Career stats must include both current season AND career totals
+- All data should be as accurate as possible for the day of query
+- Use small delays between API calls to respect rate limits but maintain accuracy"""),
         
         ("human", "{input}"),
         
         MessagesPlaceholder(variable_name="agent_scratchpad"),
     ])
 
-    # Create agent with enhanced reasoning
+    # Create agent with live data focus
     agent = create_openai_functions_agent(llm, tools, prompt)
 
-    # Wrap in executor with optimized settings for rate-limited APIs
+    # Wrap in executor optimized for live data accuracy
     agent_executor = AgentExecutor(
         agent=agent, 
         tools=tools, 
-        verbose=False,  # Set to False to reduce overhead
-        max_iterations=6,  # Reduced to prevent excessive API calls
-        max_execution_time=25,  # 25 second timeout
+        verbose=False,  # Reduce overhead while maintaining accuracy
+        max_iterations=8,  # Allow more iterations for thorough live data gathering
+        max_execution_time=45,  # Longer timeout for live data fetching
         early_stopping_method="generate",
         handle_parsing_errors=True,
         return_intermediate_steps=False

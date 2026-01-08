@@ -1,0 +1,23 @@
+{
+  "data": {
+    "success": true,
+    "data": {
+      "wikipedia": {
+        "name": "Kylian Mbapp\u00e9",
+        "source": "Wikipedia",
+        "birth_date": "Paris, France",
+        "height": "1.80\u00a0m (5\u00a0ft 11\u00a0in)[1]",
+        "position": "Forward",
+        "current_team": "Real Madrid",
+        "biography": "..."
+      },
+      "transfermarkt": {
+        "source": "Transfermarkt",
+        "url": "https://www.transfermarkt.com/kylian-mbappe/profil/spieler/342229",
+        "market_value": "\u20ac180.00m Last update: 09/06/2025"
+      }
+    }
+  },
+  "timestamp": 1759926083.5326445,
+  "ttl": 21600
+}

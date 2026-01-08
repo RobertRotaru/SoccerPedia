@@ -716,36 +716,216 @@ def get_upcoming_matches(league: str = None, days_ahead: int = 7) -> str:
 
 
 @tool
-def search_football_info(query: str) -> str:
+def get_players_multi_club_career(club1: str, club2: str = None, league: str = None, years: str = None) -> str:
     """
-    General search for football information using Wikipedia.
-    Use this for historical data, club information, tournaments, or any football-related query
-    that doesn't fit other specific tools.
+    Find players who have played for specific clubs throughout their careers.
+    Specializes in multi-club career analysis using Transfermarkt data.
     
     Args:
-        query: Search query (e.g., "2018 World Cup", "Manchester United history", "Champions League")
+        club1: First club name (e.g., "Arsenal", "Barcelona")
+        club2: Second club name (optional, for players who played for both clubs)
+        league: League filter (optional, e.g., "Premier League", "La Liga")
+        years: Year range filter (optional, e.g., "2010-2020", "2020s")
     
     Examples:
-        - search_football_info("2018 World Cup final") -> Info about the 2018 WC final
-        - search_football_info("Arsenal FC history") -> Historical info about Arsenal
+        - get_players_multi_club_career("Arsenal", "Barcelona") -> Players who played for both clubs
+        - get_players_multi_club_career("Manchester United", league="Premier League") -> Man Utd players in PL
+        - get_players_multi_club_career("Real Madrid", years="2015-2023") -> Real Madrid players 2015-2023
     """
     try:
-        # Use Wikipedia search for general football information
-        wiki_data = wiki_scraper.search_player(query)  # Reusing the search functionality
+        # Build search query for Transfermarkt
+        if club2:
+            # Multi-club search
+            query_parts = [f"players who played for {club1} and {club2}", "career", "transfermarkt"]
+            query = " ".join(query_parts)
+            
+            # Try different search variations
+            searches = [
+                f"{club1} {club2} players career transfermarkt",
+                f"players {club1} {club2} history transfers",
+                f"{club1} to {club2} transfers players",
+                f"former {club1} players {club2}"
+            ]
+        else:
+            # Single club search
+            searches = [
+                f"{club1} players career transfermarkt",
+                f"{club1} squad history transfermarkt",
+                f"former {club1} players"
+            ]
+            
+            if league:
+                searches.append(f"{club1} {league} players transfermarkt")
+            if years:
+                searches.append(f"{club1} players {years} transfermarkt")
         
-        if wiki_data.get("error"):
-            return f"No information found for '{query}' on Wikipedia"
+        # Execute searches and combine results
+        all_results = []
+        for search_query in searches[:3]:  # Limit to 3 searches to avoid rate limits
+            try:
+                result = _search_transfermarkt_careers(search_query)
+                if result and "error" not in result.lower():
+                    all_results.append(result)
+                time.sleep(2)  # Rate limiting between searches
+            except Exception as e:
+                continue
         
-        response = f"**Search Results for: {query}**\n\n"
+        if not all_results:
+            return f"No career information found for the specified criteria. Try searching for '{club1}' or '{club2 if club2 else club1}' individually."
         
-        for key, value in wiki_data.items():
-            if key not in ["source"] and value:
-                formatted_key = key.replace("_", " ").title()
-                response += f"**{formatted_key}:** {value}\n\n"
+        # Format combined results
+        response = f"**Multi-Club Career Analysis**\n\n"
+        if club2:
+            response += f"🔄 **Players who played for {club1} and {club2}:**\n\n"
+        else:
+            response += f"⚽ **{club1} Career Information:**\n\n"
         
-        response += "*Source: Wikipedia*"
+        for i, result in enumerate(all_results, 1):
+            response += f"**Search Result {i}:**\n{result}\n\n"
+        
+        response += "*Data sources: Transfermarkt, Wikipedia*\n"
+        response += f"*Search performed on: {datetime.now().strftime('%Y-%m-%d %H:%M')}*"
+        
         return response
+        
+    except Exception as e:
+        return f"Error analyzing multi-club careers: {str(e)}"
+
+
+def _search_transfermarkt_careers(query: str) -> str:
+    """Helper function to search for career information on Transfermarkt and Wikipedia"""
+    try:
+        # Extract club names from query for multi-club searches
+        clubs = []
+        club_keywords = ['arsenal', 'chelsea', 'manchester united', 'manchester city', 'liverpool', 
+                        'barcelona', 'real madrid', 'bayern munich', 'juventus', 'ac milan', 
+                        'inter milan', 'psg', 'atletico madrid', 'tottenham', 'borussia dortmund']
+        
+        query_lower = query.lower()
+        for club in club_keywords:
+            if club in query_lower:
+                clubs.append(club.title().replace(' ', ' '))
+        
+        # If we found multiple clubs, use the enhanced multi-club search
+        if len(clubs) >= 2:
+            multi_club_result = transfermarkt_scraper.search_multi_club_careers(clubs[0], clubs[1])
+            if multi_club_result and not multi_club_result.get("error"):
+                return _format_multi_club_result(multi_club_result)
+        elif len(clubs) == 1:
+            multi_club_result = transfermarkt_scraper.search_multi_club_careers(clubs[0])
+            if multi_club_result and not multi_club_result.get("error"):
+                return _format_multi_club_result(multi_club_result)
+        
+        # Fallback to regular player search
+        if any(keyword in query.lower() for keyword in ['player', 'career', 'transfer']):
+            transfermarkt_result = transfermarkt_scraper.search_player(query)
+            if transfermarkt_result and not transfermarkt_result.get("error"):
+                return _format_transfermarkt_result(transfermarkt_result)
+        
+        # Fallback to Wikipedia search for broader queries
+        wiki_result = wiki_scraper.search_player(query)
+        if wiki_result and not wiki_result.get("error"):
+            return _format_wiki_result(wiki_result)
+        
+        return "No specific results found for this search."
+        
+    except Exception as e:
+        return f"Search error: {str(e)}"
+
+
+def _format_multi_club_result(result: dict) -> str:
+    """Format multi-club search results from Transfermarkt"""
+    if not result.get("multi_club_results"):
+        return "No multi-club career information found."
     
+    clubs = result.get("query_clubs", [])
+    formatted = f"**Multi-club career search for: {' and '.join(clubs)}**\n\n"
+    
+    for i, club_result in enumerate(result["multi_club_results"], 1):
+        formatted += f"**Result {i}:**\n"
+        formatted += _format_transfermarkt_result(club_result)
+        formatted += "\n"
+    
+    return formatted
+
+
+def _format_transfermarkt_result(result: dict) -> str:
+    """Format Transfermarkt search results"""
+    formatted = ""
+    for key, value in result.items():
+        if key not in ["source", "url", "error"] and value:
+            formatted_key = key.replace("_", " ").title()
+            formatted += f"**{formatted_key}:** {value}\n"
+    return formatted if formatted else "No detailed information available."
+
+
+def _format_wiki_result(result: dict) -> str:
+    """Format Wikipedia search results"""
+    formatted = ""
+    for key, value in result.items():
+        if key not in ["source", "error"] and value:
+            formatted_key = key.replace("_", " ").title()
+            formatted += f"**{formatted_key}:** {value}\n"
+    return formatted if formatted else "No detailed information available."
+
+
+@tool
+def search_football_info(query: str) -> str:
+    """
+    Enhanced search for football information using multiple sources including Transfermarkt.
+    Particularly effective for transfer histories, club connections, and career analysis.
+    
+    Args:
+        query: Search query - can include club names, player names, transfer keywords
+               Examples: "Arsenal Barcelona players transfermarkt", "Messi career transfers"
+    
+    Specialized for:
+        - Multi-club career searches ("players Arsenal Chelsea transfermarkt")
+        - Transfer histories ("Ronaldo transfer history transfermarkt")
+        - League movements ("Premier League Serie A players transfermarkt")
+        - Historical club connections ("Real Madrid Barcelona players")
+    """
+    try:
+        # Detect if this is a Transfermarkt-specific query
+        is_transfermarkt_query = any(keyword in query.lower() for keyword in 
+            ['transfermarkt', 'transfer', 'career', 'players', 'clubs', 'moved', 'played'])
+        
+        # Detect multi-club queries
+        is_multi_club = len([word for word in query.split() if any(club in word.lower() for club in 
+            ['arsenal', 'chelsea', 'manchester', 'liverpool', 'barcelona', 'real madrid', 'bayern', 'juventus'])]) >= 2
+        
+        response = f"**Enhanced Search Results for: {query}**\n\n"
+        
+        # Try Transfermarkt first for career/transfer queries
+        if is_transfermarkt_query or is_multi_club:
+            transfermarkt_result = _search_transfermarkt_careers(query)
+            if transfermarkt_result and "error" not in transfermarkt_result.lower():
+                response += "**🔄 Transfermarkt Career Data:**\n"
+                response += transfermarkt_result + "\n\n"
+        
+        # Always include Wikipedia search for additional context
+        wiki_data = wiki_scraper.search_player(query)
+        
+        if wiki_data and not wiki_data.get("error"):
+            response += "**📚 Wikipedia Information:**\n"
+            for key, value in wiki_data.items():
+                if key not in ["source"] and value:
+                    formatted_key = key.replace("_", " ").title()
+                    response += f"**{formatted_key}:** {value}\n"
+            response += "\n"
+        
+        # Add helpful suggestions for multi-club queries
+        if is_multi_club and ("no information" in response.lower() or "error" in response.lower()):
+            response += "**💡 Search Suggestions:**\n"
+            response += "- Try searching for individual club names\n"
+            response += "- Use 'get_players_multi_club_career' tool for specific club combinations\n"
+            response += "- Search for specific player names if known\n\n"
+        
+        response += f"*Sources: {'Transfermarkt, ' if is_transfermarkt_query else ''}Wikipedia*\n"
+        response += f"*Search performed: {datetime.now().strftime('%Y-%m-%d %H:%M')}*"
+        
+        return response
+        
     except Exception as e:
         return f"Error searching for football information: {str(e)}"
 

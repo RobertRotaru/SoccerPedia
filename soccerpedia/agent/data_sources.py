@@ -611,6 +611,39 @@ class TransfermarktScraper:
         except Exception as e:
             return {"error": f"Transfermarkt search error: {e}"}
     
+    def search_multi_club_careers(self, club1: str, club2: str = None) -> Dict[str, Any]:
+        """Search for players who played for multiple clubs"""
+        try:
+            # Build search queries for multi-club careers
+            queries = []
+            if club2:
+                queries = [
+                    f"{club1} {club2} players",
+                    f"players {club1} to {club2}",
+                    f"{club1} former players {club2}"
+                ]
+            else:
+                queries = [f"{club1} players", f"{club1} squad"]
+            
+            results = []
+            for query in queries[:2]:  # Limit to avoid rate limits
+                search_result = self.search_player(query)
+                if search_result and not search_result.get("error"):
+                    results.append(search_result)
+                time.sleep(1)  # Rate limiting
+            
+            if results:
+                return {
+                    "multi_club_results": results,
+                    "query_clubs": [club1, club2] if club2 else [club1],
+                    "source": "Transfermarkt"
+                }
+            else:
+                return {"error": f"No multi-club career data found for {club1}" + (f" and {club2}" if club2 else "")}
+                
+        except Exception as e:
+            return {"error": f"Multi-club search error: {e}"}
+    
     def _get_player_market_value(self, player_url: str) -> Dict[str, Any]:
         """Get player market value and transfer data"""
         try:

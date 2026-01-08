@@ -395,21 +395,25 @@ with st.sidebar:
         if can_make_request:
             st.session_state.quick_query = "Show me the current Premier League standings"
             st.session_state.last_request_time = time.time()
+            st.rerun()
     
     if st.button("⚽ Latest PL Results", use_container_width=True, disabled=not can_make_request):
         if can_make_request:
             st.session_state.quick_query = "What are the latest Premier League results?"
             st.session_state.last_request_time = time.time()
+            st.rerun()
     
     if st.button("📅 Upcoming Matches", use_container_width=True, disabled=not can_make_request):
         if can_make_request:
             st.session_state.quick_query = "What are the upcoming Premier League matches?"
             st.session_state.last_request_time = time.time()
+            st.rerun()
     
     if st.button("🔴 Live Matches", use_container_width=True, disabled=not can_make_request):
         if can_make_request:
             st.session_state.quick_query = "Are there any live matches right now?"
             st.session_state.last_request_time = time.time()
+            st.rerun()
     
     if not can_make_request:
         st.info("💡 Rate limiting helps prevent API errors. Please wait a moment between requests.")
@@ -453,14 +457,22 @@ def get_agent():
         st.error(f"Failed to initialize football agent: {str(e)}")
         return None
 
-# Initialize chat state
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-    # Add welcome message
-    st.session_state.messages.append({
-        "role": "assistant", 
-        "content": "⚽ Welcome to Soccerpedia! I'm your AI football assistant. Ask me about matches, players, teams, standings, or any football-related question!"
-    })
+# Initialize chat state - load from current chat history
+if "messages" not in st.session_state or 'chat_initialized' not in st.session_state:
+    # Load messages from current chat
+    if st.session_state.current_chat_id in st.session_state.all_chats:
+        st.session_state.messages = st.session_state.all_chats[st.session_state.current_chat_id].copy()
+    else:
+        st.session_state.messages = []
+    st.session_state.chat_initialized = True
+
+# Sync messages when chat changes
+if st.session_state.get('last_chat_id') != st.session_state.current_chat_id:
+    if st.session_state.current_chat_id in st.session_state.all_chats:
+        st.session_state.messages = st.session_state.all_chats[st.session_state.current_chat_id].copy()
+    else:
+        st.session_state.messages = []
+    st.session_state.last_chat_id = st.session_state.current_chat_id
 
 if "quick_query" not in st.session_state:
     st.session_state.quick_query = None
@@ -520,8 +532,11 @@ if st.session_state.quick_query:
     st.session_state.quick_query = None  # Clear after use
     process_query = True
 else:
-    # Chat input with rate limiting check
-    prompt = st.chat_input("⚽ Ask about matches, players, teams, or any football question...")
+    # Chat input with rate limiting check and placeholder refresh
+    prompt = st.chat_input(
+        "⚽ Ask about matches, players, teams, or any football question...",
+        key=f"chat_input_{st.session_state.current_chat_id}_{len(st.session_state.messages)}"
+    )
     
     if prompt:
         # Check rate limiting for manual input
@@ -540,8 +555,12 @@ else:
         process_query = False
 
 if prompt and process_query:
-    # Add user message to chat
-    st.session_state.messages.append({"role": "user", "content": prompt})
+    # Add user message to both session and persistent chat
+    user_message = {"role": "user", "content": prompt, "timestamp": datetime.now().isoformat()}
+    st.session_state.messages.append(user_message)
+    st.session_state.chat_manager.add_message(st.session_state.current_chat_id, "user", prompt)
+    
+    # Display user message immediately
     st.markdown(format_message(prompt, "user"), unsafe_allow_html=True)
     
     # Show loading animation
@@ -591,8 +610,13 @@ if prompt and process_query:
         # Display assistant response
         st.markdown(format_message(answer, "assistant"), unsafe_allow_html=True)
         
-        # Add to chat history
-        st.session_state.messages.append({"role": "assistant", "content": answer})
+        # Add to both session and persistent chat history
+        assistant_message = {"role": "assistant", "content": answer, "timestamp": datetime.now().isoformat()}
+        st.session_state.messages.append(assistant_message)
+        st.session_state.chat_manager.add_message(st.session_state.current_chat_id, "assistant", answer)
+        
+        # Rerun to refresh the chat input and allow immediate follow-up
+        st.rerun()
         
     except Exception as e:
         # Clear loading animation
@@ -618,8 +642,13 @@ if prompt and process_query:
         
         st.markdown(f'<div class="error-message">{error_message}</div>', unsafe_allow_html=True)
         
-        # Add error to chat history for context
-        st.session_state.messages.append({"role": "assistant", "content": error_message})
+        # Add error to both session and persistent chat history
+        error_msg = {"role": "assistant", "content": error_message, "timestamp": datetime.now().isoformat()}
+        st.session_state.messages.append(error_msg)
+        st.session_state.chat_manager.add_message(st.session_state.current_chat_id, "assistant", error_message)
+        
+        # Rerun to refresh the interface
+        st.rerun()
         
         # Log the full error for debugging (in production, use proper logging)
         if st.secrets.get("DEBUG", False):

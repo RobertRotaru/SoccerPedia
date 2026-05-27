@@ -20,12 +20,14 @@ soccerpedia/
 │── agent/              # LangChain agent setup & tools
 │   ├── agent_factory.py
 │   ├── tools.py
-│── backend/            # FastAPI server
-│   ├── main.py
-│   ├── routers/
+│   ├── cache_manager.py
+│   ├── data_source.py
+│   ├── optimized_tools.py
+│── mcp-server/
+│   ├── football_mcp.py
 │── gui/                # Streamlit frontend
 │   ├── app.py
-│── tests/              # Unit tests
+│   ├── app_enhanced.py
 │── README.md           # This file
 │── requirements.txt    # Dependencies
 ```

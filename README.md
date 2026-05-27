@@ -36,7 +36,7 @@ soccerpedia/
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/your-username/soccerpedia.git
+git clone https://github.com/RobertRotaru/soccerpedia.git
 cd soccerpedia
 ```
 

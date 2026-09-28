@@ -1,44 +1,30 @@
 # agent/agent_factory.py
+"""Builds the Soccerpedia agent.
+
+The agent does not import its tools directly: it connects to the Soccerpedia
+MCP server (mcp_server/football_mcp.py) and discovers the tools over the Model
+Context Protocol via langchain-mcp-adapters.
+
+Transport is chosen by environment variable:
+  * SOCCERPEDIA_MCP_URL unset -> the server is spawned as a subprocess (stdio)
+  * SOCCERPEDIA_MCP_URL=http://localhost:8000/mcp -> connect to a running
+    server over streamable HTTP (faster: no process spawn per tool call)
+"""
+from __future__ import annotations
+
+import asyncio
+import os
+import sys
+from pathlib import Path
+
+from langchain.agents import create_agent
+from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
-from langchain.agents import create_openai_functions_agent, AgentExecutor
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from .tools import (
-    get_current_date,
-    get_player_career_stats_live,
-    get_latest_matches_live,
-    get_league_standings_live,
-    get_transfer_news_live,
-    compare_players_live,
-    get_live_matches,
-    get_upcoming_matches,
-    search_football_info,
-    get_players_multi_club_career
-)
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+MAX_AGENT_STEPS = 16  # LangGraph recursion limit (~8 tool round-trips)
 
-def build_agent():
-    """Build a comprehensive football assistant agent with LIVE DATA focus for accuracy"""
-    
-    # Choose your LLM
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-
-    # Register LIVE data tools that prioritize accuracy over caching
-    tools = [
-        get_current_date,
-        get_player_career_stats_live,
-        get_latest_matches_live,
-        get_league_standings_live,
-        get_transfer_news_live,
-        compare_players_live,
-        get_live_matches,
-        get_upcoming_matches,
-        search_football_info,
-        get_players_multi_club_career
-    ]
-
-    # Enhanced prompt for LIVE DATA accuracy
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are Soccerpedia, an expert AI football (soccer) assistant with access to LIVE, REAL-TIME data sources for maximum accuracy.
+SYSTEM_PROMPT = """You are Soccerpedia, an expert AI football (soccer) assistant with access to LIVE, REAL-TIME data sources for maximum accuracy.
 
 **🔴 LIVE DATA PRIORITY - ACCURACY FOCUSED:**
 - ALL tools fetch LIVE data on the day of query for maximum accuracy
@@ -114,26 +100,52 @@ For queries about player transfers, club histories, and career movements:
 - Career stats must include both current season AND career totals
 - When discussing transfers, include both historical context and current status
 - All data should be as accurate as possible for the day of query
-- Use small delays between API calls to respect rate limits but maintain accuracy"""),
-        
-        ("human", "{input}"),
-        
-        MessagesPlaceholder(variable_name="agent_scratchpad"),
-    ])
+- Use small delays between API calls to respect rate limits but maintain accuracy"""
 
-    # Create agent with live data focus
-    agent = create_openai_functions_agent(llm, tools, prompt)
 
-    # Wrap in executor optimized for live data accuracy
-    agent_executor = AgentExecutor(
-        agent=agent, 
-        tools=tools, 
-        verbose=False,  # Reduce overhead while maintaining accuracy
-        max_iterations=8,  # Allow more iterations for thorough live data gathering
-        max_execution_time=45,  # Longer timeout for live data fetching
-        early_stopping_method="force",  # Use valid early stopping method
-        handle_parsing_errors=True,
-        return_intermediate_steps=False
-    )
+def mcp_connections() -> dict:
+    """MCP connection config for the Soccerpedia server."""
+    url = os.getenv("SOCCERPEDIA_MCP_URL")
+    if url:
+        return {"soccerpedia": {"transport": "streamable_http", "url": url}}
+    return {
+        "soccerpedia": {
+            "transport": "stdio",
+            "command": sys.executable,
+            "args": ["-m", "mcp_server.football_mcp"],
+            "cwd": str(PROJECT_ROOT),
+            "env": dict(os.environ),
+        }
+    }
 
-    return agent_executor
+
+async def load_mcp_tools():
+    client = MultiServerMCPClient(mcp_connections())
+    return await client.get_tools()
+
+
+class SoccerpediaAgent:
+    """Thin sync wrapper so the Streamlit UI can call `.invoke({"input": ...})`."""
+
+    def __init__(self, graph):
+        self._graph = graph
+
+    async def ainvoke(self, inputs: dict) -> dict:
+        result = await self._graph.ainvoke(
+            {"messages": [{"role": "user", "content": inputs["input"]}]},
+            config={"recursion_limit": MAX_AGENT_STEPS},
+        )
+        return {"output": result["messages"][-1].content}
+
+    def invoke(self, inputs: dict) -> dict:
+        return asyncio.run(self.ainvoke(inputs))
+
+
+def build_agent(model=None, tools=None) -> SoccerpediaAgent:
+    """Create the agent. `model` and `tools` can be injected (used in tests)."""
+    if tools is None:
+        tools = asyncio.run(load_mcp_tools())
+    if model is None:
+        model = ChatOpenAI(model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"), temperature=0)
+    graph = create_agent(model, tools, system_prompt=SYSTEM_PROMPT)
+    return SoccerpediaAgent(graph)

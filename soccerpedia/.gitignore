@@ -1,1 +1,5 @@
 .env
+cache/
+chat_history.json
+__pycache__/
+.pytest_cache/

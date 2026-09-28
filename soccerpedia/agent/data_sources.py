@@ -7,9 +7,7 @@ import time
 from bs4 import BeautifulSoup
 from urllib.parse import quote
 import re
-import sys
-sys.path.append('..')
-from config import RATE_LIMIT_DELAY, MAX_REQUESTS_PER_MINUTE, RETRY_ATTEMPTS, RETRY_DELAY, LEAGUE_MAPPINGS
+from config import FOOTBALL_DATA_API_KEY, API_FOOTBALL_KEY, RATE_LIMIT_DELAY, MAX_REQUESTS_PER_MINUTE, RETRY_ATTEMPTS, RETRY_DELAY, LEAGUE_MAPPINGS
 from .cache_manager import CacheManager
 
 
@@ -20,8 +18,8 @@ class DataSourceManager:
     """
     
     def __init__(self):
-        self.football_data_api_key = os.getenv("FOOTBALL_DATA_API_KEY", "REMOVED_API_KEY")
-        self.api_football_key = os.getenv("API_FOOTBALL_KEY", "")
+        self.football_data_api_key = FOOTBALL_DATA_API_KEY
+        self.api_football_key = API_FOOTBALL_KEY
         
         # Initialize cache manager
         self.cache_manager = CacheManager(cache_dir="cache", default_ttl=1800)  # 30 minutes default

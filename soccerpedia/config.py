@@ -1,13 +1,13 @@
 # Configuration for Soccerpedia
 import os
 
-# API Configuration
-FOOTBALL_DATA_API_KEY = os.getenv("FOOTBALL_DATA_API_KEY", "REMOVED_API_KEY")
+# API Configuration (set these in .env - never commit real keys)
+FOOTBALL_DATA_API_KEY = os.getenv("FOOTBALL_DATA_API_KEY", "")
 API_FOOTBALL_KEY = os.getenv("API_FOOTBALL_KEY", "")
 
 # Rate Limiting Configuration
 RATE_LIMIT_DELAY = 1.0  # seconds between requests
-MAX_REQUESTS_PER_MINUTE = 50  # conservative limit
+MAX_REQUESTS_PER_MINUTE = 10  # football-data.org free tier allows 10 calls/minute
 RETRY_ATTEMPTS = 3
 RETRY_DELAY = 2  # seconds
 

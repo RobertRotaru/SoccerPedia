@@ -16,21 +16,24 @@ flowchart LR
     UI[Streamlit chat UI] --> Agent[LangChain agent<br/>gpt-4o-mini]
     Agent -- MCP: stdio or streamable HTTP --> Server[Soccerpedia MCP server<br/>10 tools]
     Other[Claude Desktop / Cursor /<br/>MCP Inspector] -- MCP --> Server
-    Server --> Cache[(TTL cache<br/>memory + disk)]
-    Cache --> FD[football-data.org]
-    Cache --> AF[API-Football]
-    Cache --> TM[Transfermarkt scraper]
-    Cache --> WP[Wikipedia]
+    Server --> DSM[Data source manager<br/>rate limiter + TTL cache]
+    DSM --> FD[football-data.org]
+    DSM -. fallback .-> AF[API-Football]
+    Server --> TM[Transfermarkt scraper]
+    Server --> WP[Wikipedia API]
 ```
+
+Match and standings data come from the football APIs. Player, career and transfer data come from
+Transfermarkt and Wikipedia.
 
 | Component | Path | What it does |
 |---|---|---|
 | MCP server | `soccerpedia/mcp_server/football_mcp.py` | Publishes the tool layer over MCP (stdio or streamable HTTP). Tool schemas are generated from the Python signatures and docstrings. |
 | Agent | `soccerpedia/agent/agent_factory.py` | LangChain 1.x `create_agent`. Discovers its tools **from the MCP server** through `langchain-mcp-adapters` and never imports them directly. |
-| Tools | `soccerpedia/agent/tools.py` | Results, standings, fixtures, live matches, career stats, player comparison, transfers, multi-club careers, free-text search |
-| Data sources | `soccerpedia/agent/data_sources.py` | Chooses a source by query type (football-data.org → API-Football → scraping), with per-source rate limiting |
-| Cache | `soccerpedia/agent/cache_manager.py` | Two-level (memory + JSON file) TTL cache. The TTL depends on the data: 30 s for live scores, 3–30 min for other match data, 30 min for standings, 6 h for player comparisons. Errors are never cached. |
-| UI | `soccerpedia/gui/app.py` | Streamlit chat with multiple saved conversations |
+| Tools | `soccerpedia/agent/tools.py` | 10 tools: current date, latest results, standings, upcoming fixtures, live matches, player career stats, player comparison, transfer news, multi-club careers, free-text search |
+| Data sources | `soccerpedia/agent/data_sources.py` | For matches and standings, tries football-data.org first and falls back to API-Football. Each source has its own rate limiter (at least 1 s between requests, at most 10 per minute) and retries on timeouts and server errors. Transfermarkt pages and the Wikipedia API are scraped for player data. |
+| Cache | `soccerpedia/agent/cache_manager.py` | Two-level TTL cache: in memory, backed by JSON files so entries survive a restart. Used for live matches (30 s) and upcoming fixtures (3 min). The latest-results and standings tools skip it on purpose so they always return fresh data. Responses that contain an error are never cached. |
+| UI | `soccerpedia/gui/app.py` | Streamlit chat. Conversations are saved to a local JSON file and can be reopened. |
 
 ### Design notes
 
@@ -42,8 +45,10 @@ flowchart LR
   suits a deployment where the UI and the server run separately.
 - **Stdout safety.** With stdio, stdout *is* the JSON-RPC channel, so the server sends any stray
   `print()` from the data sources to stderr.
-- **Rate limits.** The free API tiers are small (10 req/min on football-data.org). The cache and
-  the per-source limiter keep a normal conversation under that limit.
+- **Rate limits.** The football-data.org free tier allows 10 requests a minute. When a source hits
+  that limit, the limiter waits for the next minute instead of letting the request fail.
+- **Bounded agent loop.** The agent stops after 16 graph steps (about 8 tool calls), so a confused
+  model cannot loop on tools forever.
 
 ## Quick start
 
@@ -89,11 +94,27 @@ Or explore it interactively: `npx @modelcontextprotocol/inspector python -m mcp_
 
 - What were the latest La Liga results?
 - Show me the current Premier League table.
-- Compare Mbappé and Haaland this season.
-- Which players have played for both Arsenal and Barcelona?
-- Any transfer news on Real Madrid?
+- What Champions League matches are on this week?
+- Compare Mbappé and Haaland.
+- What is Mbappé's transfer history?
 
 League codes: `PL` Premier League · `PD` La Liga · `BL1` Bundesliga · `SA` Serie A · `FL1` Ligue 1 · `CL` Champions League · `EL` Europa League · `WC` World Cup
+
+## Known limitations
+
+- **No conversation memory.** The UI saves your chats, but each message goes to the agent on its
+  own, so a follow-up like "and their next match?" does not know what "their" refers to.
+- **Transfer news is player-level only.** Asking about a player scrapes their Transfermarkt page.
+  Club-level and general transfer news return a placeholder, not real data.
+- **Multi-club questions are approximate.** "Players who played for Arsenal and Barcelona" runs
+  Transfermarkt and Wikipedia searches. It does not cross-check the two clubs' squad histories, so
+  the answer depends on what those searches return.
+- **Current-season stats are hard-coded.** The API-Football lookup for current-season stats uses
+  the 2024 season and the Premier League, and only runs if `API_FOOTBALL_KEY` is set.
+- **Latest results can be slow.** The tool checks one day at a time, up to three weeks back, with
+  a fresh request each day. On the free tier that can reach the rate limit and wait for a minute.
+- **Scrapers are fragile.** Transfermarkt parsing depends on the site's HTML and breaks if the
+  layout changes.
 
 ## Tests
 
@@ -102,7 +123,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-The suite covers the cache (TTL, persistence, error handling) and the MCP server (tool
+The 9 tests cover the cache (TTL, persistence, error handling) and the MCP server (tool
 registration, generated schemas, calls). It also has an end-to-end test where the agent spawns
 the real MCP server over stdio, discovers its tools and runs one. A fake LLM stands in for the
 model, so the tests need no API keys and run in CI on every push.
